@@ -6,6 +6,8 @@
 #include <unistd.h>
 #include <assert.h>
 
+#include <stdio.h>
+
 // For every allocated block, we store some metadata
 struct metadata {
   size_t size;
@@ -32,6 +34,7 @@ struct metadata* find_free_block(size_t size) {
 }
 
 
+// Request a new block of memory from the OS
 struct metadata* request_space(size_t size) {
     // New block starts at current end of heap
     struct metadata* block = sbrk(0);
@@ -63,7 +66,7 @@ struct metadata* request_space(size_t size) {
 }
 
 
-void *malloc(size_t size) {
+void *mymalloc(size_t size) {
     // Evidently nonsense
     if (size <= 0) {
         return NULL;
@@ -97,6 +100,8 @@ void *malloc(size_t size) {
         // mark it as used now.
         if (block) {
             block->free = 0;
+            
+        // TODO: Consider splitting block to save memory
         
         // Else, we need to request more memory from the OS
         } else {
@@ -114,12 +119,55 @@ void *malloc(size_t size) {
     return (block+1);
 }
 
-void print_list() {
-    // TBD
-    return NULL;
+void print_block(struct metadata* block) {
+    if (block) {
+        printf("Adress: %li, Size: %i, Free: %i, Next: %li\n", (long) block, (int) block->size, block->free, (long) block->next);
+    } else {
+        printf("NULL\n");
+    }
 }
 
+void print_list() {
+    if (!HEAD) {
+        printf("List is empty.\n");
+        return;
+    }
+    
+    struct metadata* current = HEAD;
+    while (current) {
+        print_block(current);
+        current = current->next;
+    }
+}
+
+// Convenience function to get the metadata for a block of memory
+struct metadata *get_block_ptr(void *ptr) {
+  return ((struct metadata*) ptr) - 1;
+}
+
+
+void myfree(void *ptr) {
+  if (!ptr) {
+    return;
+  }
+
+  // TODO: consider merging blocks once splitting blocks is implemented.
+  
+  struct metadata* block_ptr = get_block_ptr(ptr);
+  assert(block_ptr->free == 0);
+  block_ptr->free = 1;
+}
+
+
 int main() {
-    int* x = (int*) malloc(10*sizeof(int));
+    print_list();
+    void* x = mymalloc(50);
+    void* y = mymalloc(500);
+    void* z = mymalloc(10);
+    myfree(y);
+    myfree(z);
+    
+    y = mymalloc(100);
+    print_list();
     return 0;
 }
