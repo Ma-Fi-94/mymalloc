@@ -1,11 +1,18 @@
-// WIP, based on: https://danluu.com/malloc-tutorial/
-// Commented, and modified a bit, maybe for the better (?)
+/* WIP, based on: https://danluu.com/malloc-tutorial/
+ * Added comments and modified a bit, maybe for the better (?)
+ * 
+ * Changes to the program logic:
+ *  -   Introduced pointer TAIL to last element of global linked list,
+ *      so that we don't have to search for it anew every time.
+ *  -   Removed sbrk(0) before sbrk(META_SIZE + size) in request_space().
+ * 
+ * 
+*/ 
 
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include <assert.h>
-
 #include <stdio.h>
 
 // For every allocated block, we store some metadata
@@ -24,12 +31,16 @@ struct metadata {
 struct metadata* HEAD = NULL;
 struct metadata* TAIL = NULL;
 
-// Find a free block of suitable size in the list, starting from head
+// Trying to find a free block of suitable size in the list
 struct metadata* find_free_block(size_t size) {
+    // Starting at the HEAD of the list
     struct metadata* current = HEAD;
+    
+    // Iterate through list until suitable block is found
     while (current && !(current->free && current->size >= size)) {
         current = current->next;
     }
+    
     return current;
 }
 
@@ -37,24 +48,14 @@ struct metadata* find_free_block(size_t size) {
 // Request a new block of memory from the OS
 struct metadata* request_space(size_t size) {
     // New block starts at current end of heap
-    struct metadata* block = sbrk(0);
-    
-    // Extend heap by amount of space required
-    void* request = sbrk(META_SIZE + size);
-    
-    // Return NULL if sbrk failed
-    if (request == (void*) -1) {
-        return NULL;
-    }
-    
-    // Consistency check (race conditions / thread safety)
-    assert ((void*) block == request);
+    struct metadata* block = sbrk(META_SIZE + size);
     
     // If there is already at least one entry in the list
     if (TAIL) {
-        //...
+        // Set pointer *next of current TAIL block to new block
         TAIL->next = block;
-        //...
+        
+        // New block becomes the new TAIL
         TAIL = block;
     }
     
@@ -68,9 +69,7 @@ struct metadata* request_space(size_t size) {
 
 void *mymalloc(size_t size) {
     // Evidently nonsense
-    if (size <= 0) {
-        return NULL;
-    }
+    if (size <= 0) { return NULL; }
 
     // New block to be stored in here
     struct metadata *block;
@@ -81,9 +80,7 @@ void *mymalloc(size_t size) {
         block = request_space(size);
         
         // Return NULL if request has failed.
-        if (!block) {
-            return NULL;
-        }
+        if (!block) { return NULL; }
         
         // Otherwise, the requested block becomes our new list head and tail.
         HEAD = block;
@@ -119,6 +116,8 @@ void *mymalloc(size_t size) {
     return (block+1);
 }
 
+
+// Convenience function to plot a single block of metadata
 void print_block(struct metadata* block) {
     if (block) {
         printf("Adress: %li, Size: %i, Free: %i, Next: %li\n", (long) block, (int) block->size, block->free, (long) block->next);
@@ -127,6 +126,8 @@ void print_block(struct metadata* block) {
     }
 }
 
+
+// Convenience function to plot the complete global linked list
 void print_list() {
     if (!HEAD) {
         printf("List is empty.\n");
@@ -147,14 +148,18 @@ struct metadata *get_block_ptr(void *ptr) {
 
 
 void myfree(void *ptr) {
-  if (!ptr) {
-    return;
-  }
+  // Calling free(NULL) is supported
+  if (!ptr) { return; }
 
   // TODO: consider merging blocks once splitting blocks is implemented.
   
+  // Get pointer to metadata of the block of memory that shall be freed
   struct metadata* block_ptr = get_block_ptr(ptr);
+  
+  // Make sure it is even freeable
   assert(block_ptr->free == 0);
+  
+  // Free it
   block_ptr->free = 1;
 }
 
@@ -169,5 +174,7 @@ int main() {
     
     y = mymalloc(100);
     print_list();
+    myfree(y);
+    myfree(x);
     return 0;
 }
