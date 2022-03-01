@@ -5,9 +5,10 @@
  *  -   Introduced pointer TAIL to last element of global linked list,
  *      so that we don't have to search for it anew every time.
  *  -   Removed sbrk(0) before sbrk(META_SIZE + size) in request_space().
+ *  -   Added block splitting when a free block is recycled that's too large.
  * 
  * Planned changes to the program logic:
- *  -   TBD: Add block splitting (WIP) and block merging.
+ *  -   TBD: Add Block merging upon freeing.
  *  -   TBD: Add best-fit as alternative to current first-fit.
  * 
 */ 
@@ -102,19 +103,24 @@ void *mymalloc(size_t size) {
         if (block) {
             block->free = 0;
             
-            // TODO: Consider splitting block to save memory
-            if (block->size > size + META_SIZE) {
+            // If the block is sufficiently large, we split it
+            if (block->size > size + 2*META_SIZE) {
                 printf("Splitting oversized block. \n");
                 
-                struct metadata* remaining = (void*) block + META_SIZE + size;
-                printf("Remaining block will start at %ld\n", (long) remaining); // checked, ok.
+                // The new block that contains the surplus memory
+                struct metadata* surplus = (void*) block + META_SIZE + size;
+                printf("Remaining block will start at %ld\n", (long) surplus); // checked, ok.
                 
-                // TODO: write metadata for "remaining", and include it into our linked list.
+                // Write metadata for the surplus block
+                surplus->size = block->size - size - 2*META_SIZE;
+                surplus->next = block->next;
+                surplus->free = 1;
+                
+                // Write metadata for the allocated block
+                block->size = size;
+                block->next = surplus;
             }
-            
-            
-            
-        
+       
         // Else, we need to request more memory from the OS
         } else {
             block = request_space(size);
