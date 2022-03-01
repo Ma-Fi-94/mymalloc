@@ -176,18 +176,45 @@ struct metadata *get_block_ptr(void *ptr) {
 void myfree(void *ptr) {
   // Calling free(NULL) is supported
   if (!ptr) { return; }
-
-  // TODO: consider merging blocks once splitting blocks is implemented.
-  
+ 
   // Get pointer to metadata of the block of memory that shall be freed
-  struct metadata* block_ptr = get_block_ptr(ptr);
+  struct metadata* block = get_block_ptr(ptr);
   
   // Make sure it is even freeable
-  assert(block_ptr->free == 0);
+  assert(block->free == 0);
   
   // Free it
-  block_ptr->free = 1;
+  block->free = 1;
+  
+  // If the block "to the right" exists and is free, we merge the two
+  struct metadata* next_block = block->next;
+  if (next_block && next_block->free) {
+      printf("Merging block with its right neighbour.\n");
+      block->next = next_block->next;
+      block->size = block->size + META_SIZE + next_block->size;
+  }
+  
+  // Same for block on the left, which we first need to search
+  // TODO: We might want to switch to a double-linked list in the future
+  struct metadata* prev_block = NULL;
+  struct metadata* current = HEAD;
+  while (current) {
+    
+    // Found the previous block "on the left"
+    if (current->next == block) {
+        prev_block = current;
+    }
+    current = current->next;    
+  }
+  
+  // Did we find it, and if so, is it empty? Then merge
+  if (prev_block && prev_block->free) {
+    printf("Merging block with its left neighbour.\n");
+    prev_block->next = block->next;
+    prev_block->size = prev_block->size + META_SIZE + block->size;
+  } 
 }
+
 
 
 int main() {
@@ -205,9 +232,18 @@ int main() {
     myfree(x);
     print_list();
     
-    printf("Allocating 10 bytes.\n");
+    printf("Allocating 10 bytes, should cause a split.\n");
     x = mymalloc(10);
     print_list();
+    
+    printf("Free the first block, should cause a merge with the block to the right.\n");
+    myfree(x);
+    print_list();
+    
+    printf("Free the second block, should cause a merge with the block to the left.\n");
+    myfree(y);
+    print_list();
+    
     
     return 0;
 }
