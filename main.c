@@ -36,8 +36,9 @@ struct metadata {
 struct metadata* HEAD = NULL;
 struct metadata* TAIL = NULL;
 
-// Trying to find a free block of suitable size in the list
-struct metadata* find_free_block(size_t size) {
+// Trying to find a free block of suitable size in the list.
+// Return the first that fits.
+struct metadata* find_first_free_block(size_t size) {
     // Starting at the HEAD of the list
     struct metadata* current = HEAD;
     
@@ -47,6 +48,13 @@ struct metadata* find_free_block(size_t size) {
     }
     
     return current;
+}
+
+// Trying to find a free block of suitable size in the list.
+// Return the best-fitting block
+struct metadata* find_best_free_block(size_t size) {
+    // TODO
+    return NULL;
 }
 
 
@@ -96,7 +104,7 @@ void *mymalloc(size_t size) {
     } else {
 
         // Try to find a free block on the list
-        block = find_free_block(size);
+        block = find_first_free_block(size);
         
         // If we found a suitable free block on the list,
         // mark it as used now.
