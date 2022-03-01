@@ -52,12 +52,13 @@ struct metadata* find_first_free_block(size_t size) {
     return current;
 }
 
+// TODO
 // Trying to find a free block of suitable size in the list.
 // Return the best-fitting block
-struct metadata* find_best_free_block(size_t size) {
+//struct metadata* find_best_free_block(size_t size) {
     // TODO
-    return NULL;
-}
+//    return NULL;
+//}
 
 
 // Request a new block of memory from the OS
