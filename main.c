@@ -5,12 +5,12 @@
  *  -   Introduced pointer TAIL to last element of global linked list,
  *      so that we don't have to search for it anew every time.
  *  -   Removed sbrk(0) before sbrk(META_SIZE + size) in request_space().
+ *  -   Switched from a single-linked to a double-linked global list of memory
+ *      blocks to make searching for previous blocks O(1) instead of O(n)
  *  -   Added block splitting when a free block is recycled that's too large,
- *  -   and block merging upon freeing.
+ *      and block merging upon freeing.
  * 
  * Planned changes to the program logic:
- *  -   TBD: Switch to double-linked list to make searching for previous
- *      block in O(1), instead of O(n).
  *  -   TBD: Add best-fit as alternative to current first-fit.
  * 
 */ 
@@ -26,11 +26,11 @@ struct metadata {
   size_t size;
   int free;
   struct metadata* next;
+  struct metadata* prev;
 };
 
 
 // The amount of bytes we need for one block's metadata
-// On my machine, it's 24 bytes.
 #define META_SIZE sizeof(struct metadata)
 
 
@@ -69,6 +69,9 @@ struct metadata* request_space(size_t size) {
     if (TAIL) {
         // Set pointer *next of current TAIL block to new block
         TAIL->next = block;
+        
+        // Set pointer *prev of the new block to current tail
+        block->prev = TAIL;
         
         // New block becomes the new TAIL
         TAIL = block;
@@ -124,6 +127,7 @@ void *mymalloc(size_t size) {
                 // Write metadata for the surplus block
                 surplus->size = block->size - size - 2*META_SIZE;
                 surplus->next = block->next;
+                surplus->prev = block;
                 surplus->free = 1;
                 
                 // Write metadata for the allocated block
@@ -149,23 +153,26 @@ void *mymalloc(size_t size) {
 
 // Convenience function to plot the complete global linked list
 void print_list() {
-    printf("--------------------------------------------------------\n");
+    printf("------------------------------------------------------------------------\n");
+    printf("%-20s %-20s %-7s %-6s %-20s\n", "Adress", "Previous", "Size", "Free", "Next");
+    printf("------------------------------------------------------------------------\n");
     if (!HEAD) {
         printf("List is empty.\n");
-        printf("--------------------------------------------------------\n\n");
+        printf("------------------------------------------------------------------------\n\n");
         return;
     }
     
     struct metadata* current = HEAD;
     while (current) {
-        printf("Adress: %li, Size: %i, Free: %i, Next: %li\n",
+        printf("%-20li %-20li %-7i %-6i %-20li\n",
                (long) current,
+               (long) current->prev,
                (int) current->size,
                current->free,
                (long) current->next);
         current = current->next;
     }
-    printf("--------------------------------------------------------\n\n");
+    printf("------------------------------------------------------------------------\n\n");
 }
 
 // Convenience function to get the metadata for a block of memory
@@ -193,26 +200,26 @@ void myfree(void *ptr) {
       printf("Merging block with its right neighbour.\n");
       block->next = next_block->next;
       block->size = block->size + META_SIZE + next_block->size;
+      // If the block to the right has a successor, we set the successor's
+      // *prev pointer to the block we just merged together
+      struct metadata* next_next_block = next_block->next;
+      if (next_next_block) {
+        next_next_block->prev = block;
+      }
   }
   
-  // Same for block on the left, which we first need to search
-  // TODO: We might want to switch to a double-linked list in the future
-  struct metadata* prev_block = NULL;
-  struct metadata* current = HEAD;
-  while (current) {
-    
-    // Found the previous block "on the left"
-    if (current->next == block) {
-        prev_block = current;
-    }
-    current = current->next;    
-  }
-  
-  // Did we find it, and if so, is it empty? Then merge
+  // Same for the block "to the left"
+  struct metadata* prev_block = block->prev;
   if (prev_block && prev_block->free) {
     printf("Merging block with its left neighbour.\n");
     prev_block->next = block->next;
     prev_block->size = prev_block->size + META_SIZE + block->size;
+    // If the block to left left has a predecessor one, we set the predecessor's
+    // *next ptr to the block we just merged together
+    struct metadata* prev_prev_block = prev_block->prev;
+    if (prev_prev_block) {
+        prev_prev_block->next = block;
+    }
   } 
 }
 
