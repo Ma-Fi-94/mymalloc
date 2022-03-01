@@ -3,7 +3,7 @@ Very much WIP right now!
 
 I'm following an online tutorial (https://danluu.com/malloc-tutorial/) for writing a simple memory manager in plain C. I'm slightly refactoring the code, annotating it extensively, and also slightly improve upon it (at least, I think I do...).
 
-## Changes to the original alraedy implemented:
+## Changes to the original already implemented:
   - Introduced pointer TAIL to last element of the global linked list of memory blocks, so that we don't have to search for it anew every time. In my opinion, this makes the code slightly easier to understand, as we avoid the double pointer in the parameters of find_free_block() that gets changed during search.
   - Removed sbrk(0) before sbrk(META_SIZE + size) in request_space(), because as far as I can tell this is not required.
   - Added a convenience function to print the current state of the global linked list of memory blocks.
