@@ -5,10 +5,12 @@
  *  -   Introduced pointer TAIL to last element of global linked list,
  *      so that we don't have to search for it anew every time.
  *  -   Removed sbrk(0) before sbrk(META_SIZE + size) in request_space().
- *  -   Added block splitting when a free block is recycled that's too large.
+ *  -   Added block splitting when a free block is recycled that's too large,
+ *  -   and block merging upon freeing.
  * 
  * Planned changes to the program logic:
- *  -   TBD: Add Block merging upon freeing.
+ *  -   TBD: Switch to double-linked list to make searching for previous
+ *      block in O(1), instead of O(n).
  *  -   TBD: Add best-fit as alternative to current first-fit.
  * 
 */ 
@@ -111,7 +113,7 @@ void *mymalloc(size_t size) {
         if (block) {
             block->free = 0;
             
-            // If the block is sufficiently large, we split it
+            // If the block is sufficiently large, split it
             if (block->size > size + 2*META_SIZE) {
                 printf("Splitting oversized block. \n");
                 
@@ -129,7 +131,7 @@ void *mymalloc(size_t size) {
                 block->next = surplus;
             }
        
-        // Else, we need to request more memory from the OS
+        // If we didn't find a suitable free block, request memory from the OS
         } else {
             block = request_space(size);
             
@@ -144,35 +146,26 @@ void *mymalloc(size_t size) {
 }
 
 
-// Convenience function to plot a single block of metadata
-void print_block(struct metadata* block) {
-    if (block) {
-        printf("Adress: %li, Size: %i, Free: %i, Next: %li\n",
-               (long) block,
-               (int) block->size,
-               block->free,
-               (long) block->next);
-    } else {
-        printf("NULL\n");
-    }
-}
-
 
 // Convenience function to plot the complete global linked list
 void print_list() {
-    printf("-------------------------------------------------\n");
+    printf("--------------------------------------------------------\n");
     if (!HEAD) {
         printf("List is empty.\n");
-        printf("-------------------------------------------------\n\n");
+        printf("--------------------------------------------------------\n\n");
         return;
     }
     
     struct metadata* current = HEAD;
     while (current) {
-        print_block(current);
+        printf("Adress: %li, Size: %i, Free: %i, Next: %li\n",
+               (long) current,
+               (int) current->size,
+               current->free,
+               (long) current->next);
         current = current->next;
     }
-    printf("-------------------------------------------------\n\n");
+    printf("--------------------------------------------------------\n\n");
 }
 
 // Convenience function to get the metadata for a block of memory
@@ -188,8 +181,8 @@ void myfree(void *ptr) {
   // Get pointer to metadata of the block of memory that shall be freed
   struct metadata* block = get_block_ptr(ptr);
   
-  // Make sure it is even freeable
-  assert(block->free == 0);
+  // Freeing a freed block is supported
+  if (block->free) { return; }
   
   // Free it
   block->free = 1;
@@ -251,7 +244,6 @@ int main() {
     printf("Free the second block, should cause a merge with the block to the left.\n");
     myfree(y);
     print_list();
-    
     
     return 0;
 }
