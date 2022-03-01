@@ -1,11 +1,14 @@
 /* WIP, based on: https://danluu.com/malloc-tutorial/
  * Added comments and modified a bit, maybe for the better (?)
  * 
- * Changes to the program logic:
+ * Implemented to the program logic:
  *  -   Introduced pointer TAIL to last element of global linked list,
  *      so that we don't have to search for it anew every time.
  *  -   Removed sbrk(0) before sbrk(META_SIZE + size) in request_space().
  * 
+ * Planned changes to the program logic:
+ *  -   TBD: Add block splitting (WIP) and block merging.
+ *  -   TBD: Add best-fit as alternative to current first-fit.
  * 
 */ 
 
@@ -24,6 +27,7 @@ struct metadata {
 
 
 // The amount of bytes we need for one block's metadata
+// On my machine, it's 24 bytes.
 #define META_SIZE sizeof(struct metadata)
 
 
@@ -98,16 +102,25 @@ void *mymalloc(size_t size) {
         if (block) {
             block->free = 0;
             
-        // TODO: Consider splitting block to save memory
+            // TODO: Consider splitting block to save memory
+            if (block->size > size + META_SIZE) {
+                printf("Splitting oversized block. \n");
+                
+                struct metadata* remaining = (void*) block + META_SIZE + size;
+                printf("Remaining block will start at %ld\n", (long) remaining); // checked, ok.
+                
+                // TODO: write metadata for "remaining", and include it into our linked list.
+            }
+            
+            
+            
         
         // Else, we need to request more memory from the OS
         } else {
             block = request_space(size);
             
             // if request failed, we return NULL
-            if (!block) {
-                return NULL;
-            }
+            if (!block) { return NULL; }
         }
     }
         
@@ -120,7 +133,11 @@ void *mymalloc(size_t size) {
 // Convenience function to plot a single block of metadata
 void print_block(struct metadata* block) {
     if (block) {
-        printf("Adress: %li, Size: %i, Free: %i, Next: %li\n", (long) block, (int) block->size, block->free, (long) block->next);
+        printf("Adress: %li, Size: %i, Free: %i, Next: %li\n",
+               (long) block,
+               (int) block->size,
+               block->free,
+               (long) block->next);
     } else {
         printf("NULL\n");
     }
@@ -129,8 +146,10 @@ void print_block(struct metadata* block) {
 
 // Convenience function to plot the complete global linked list
 void print_list() {
+    printf("-------------------------------------------------\n");
     if (!HEAD) {
         printf("List is empty.\n");
+        printf("-------------------------------------------------\n\n");
         return;
     }
     
@@ -139,6 +158,7 @@ void print_list() {
         print_block(current);
         current = current->next;
     }
+    printf("-------------------------------------------------\n\n");
 }
 
 // Convenience function to get the metadata for a block of memory
@@ -166,15 +186,22 @@ void myfree(void *ptr) {
 
 int main() {
     print_list();
-    void* x = mymalloc(50);
-    void* y = mymalloc(500);
-    void* z = mymalloc(10);
-    myfree(y);
-    myfree(z);
     
-    y = mymalloc(100);
+    printf("Allocating 500 bytes.\n");
+    void* x = mymalloc(500);
     print_list();
-    myfree(y);
+    
+    printf("Allocating another 500 bytes.\n");
+    void* y = mymalloc(500);
+    print_list();
+    
+    printf("Freeing the first block.\n");
     myfree(x);
+    print_list();
+    
+    printf("Allocating 10 bytes.\n");
+    x = mymalloc(10);
+    print_list();
+    
     return 0;
 }
