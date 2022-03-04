@@ -20,6 +20,7 @@
 #include <unistd.h>
 #include <assert.h>
 #include <stdio.h>
+#include <stdint.h>
 
 // For every allocated block, we store some metadata
 struct metadata {
@@ -62,12 +63,13 @@ struct metadata* find_first_free_block(size_t size) {
 
 
 // Request a new block of memory from the OS
-struct metadata* request_space(size_t size) {
+struct metadata* request_space(size_t size) {    
     // New block starts at current end of heap
     struct metadata* block = sbrk(META_SIZE + size);
     
     // If there is already at least one entry in the list
     if (TAIL) {
+        
         // Set pointer *next of current TAIL block to new block
         TAIL->next = block;
         
@@ -76,6 +78,7 @@ struct metadata* request_space(size_t size) {
         
         // New block becomes the new TAIL
         TAIL = block;
+
     }
     
     // Write entry, and return it
@@ -137,6 +140,7 @@ void *mymalloc(size_t size) {
             }
        
         // If we didn't find a suitable free block, request memory from the OS
+        // to get a new block, which will become the new TAIL
         } else {
             block = request_space(size);
             
@@ -157,8 +161,10 @@ void print_list() {
     printf("------------------------------------------------------------------------\n");
     printf("%-20s %-20s %-7s %-6s %-20s\n", "Adress", "Previous", "Size", "Free", "Next");
     printf("------------------------------------------------------------------------\n");
+    printf("HEAD is %li\n", (long) HEAD);
     if (!HEAD) {
         printf("List is empty.\n");
+        printf("TAIL is %li\n", (long) TAIL);
         printf("------------------------------------------------------------------------\n\n");
         return;
     }
@@ -173,6 +179,8 @@ void print_list() {
                (long) current->next);
         current = current->next;
     }
+    printf("TAIL is %li\n", (long) TAIL);
+
     printf("------------------------------------------------------------------------\n\n");
 }
 
@@ -201,13 +209,23 @@ void myfree(void *ptr) {
       printf("Merging block with its right neighbour.\n");
       block->next = next_block->next;
       block->size = block->size + META_SIZE + next_block->size;
+      
       // If the block to the right has a successor, we set the successor's
       // *prev pointer to the block we just merged together
       struct metadata* next_next_block = next_block->next;
       if (next_next_block) {
         next_next_block->prev = block;
       }
+      
+    // If the block to the right was the TAIL, then
+    // the merged block becomes the new TAIL.
+    if (TAIL == next_block) {
+        TAIL = block;
+    }
+      
   }
+  
+  
   
   // Same for the block "to the left"
   struct metadata* prev_block = block->prev;
@@ -215,22 +233,34 @@ void myfree(void *ptr) {
     printf("Merging block with its left neighbour.\n");
     prev_block->next = block->next;
     prev_block->size = prev_block->size + META_SIZE + block->size;
-    // If the block to left left has a predecessor one, we set the predecessor's
+    
+    // If the block to left left has a predecessor, we set the predecessor's
     // *next ptr to the block we just merged together
     struct metadata* prev_prev_block = prev_block->prev;
     if (prev_prev_block) {
         prev_prev_block->next = block;
     }
+    
+    // If the current block was the TAIL,
+    // the newly merged block becomes the new TAIL
+    if (TAIL == block) {
+        TAIL = prev_block;
+    }
   } 
 }
 
 
-void* calloc(size_t nelem, size_t elsize) {
-  size_t size = nelem * elsize; // TODO: check for overflow.
-  // https://codereview.stackexchange.com/questions/37177/simple-method-to-detect-int-overflow
+void* mycalloc(size_t nelem, size_t elsize) {
+  // Check for overflow
+  printf("Trying to calloc %li elements a %li bytes.\n", nelem, elsize);
+  if ( nelem > SIZE_MAX / elsize ) {
+      printf("Maximum size of size_t exceeded.\n");
+      return NULL;}
   
-  void *ptr = malloc(size);
+  size_t size = nelem * elsize;
+  void *ptr = mymalloc(size); 
   memset(ptr, 0, size);
+  
   return ptr;
 }
 
@@ -260,6 +290,18 @@ int main() {
     
     printf("Free the second block, should cause a merge with the block to the left.\n");
     myfree(y);
+    print_list();
+    
+    printf("Calloc-ing 10 ints, should cause a split.\n");
+    y = mycalloc(10, sizeof(int));   
+    print_list();
+    
+    printf("Calloc-ing 1000 ints.\n");
+    y = mycalloc(1000, sizeof(int));   
+    print_list();
+    
+    printf("Calloc-ing 1e19 ints, should return NULL and do nothing due to overflow.\n");
+    y = mycalloc(10000000000000000000, sizeof(int));   
     print_list();
     
     return 0;
