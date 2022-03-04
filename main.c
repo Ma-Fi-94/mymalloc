@@ -122,11 +122,15 @@ void *mymalloc(size_t size) {
             
             // If the block is sufficiently large, split it
             if (block->size > size + 2*META_SIZE) {
-                printf("Splitting oversized block. \n");
                 
                 // The new block that contains the surplus memory
                 struct metadata* surplus = (void*) block + META_SIZE + size;
-                printf("Remaining block will start at %ld\n", (long) surplus); // checked, ok.
+                
+                // If the current block was TAIL, the surplus block
+                // becomes the new TAIL
+                if (TAIL == block) {
+                    TAIL = surplus;
+                }
                 
                 // Write metadata for the surplus block
                 surplus->size = block->size - size - 2*META_SIZE;
@@ -161,26 +165,22 @@ void print_list() {
     printf("------------------------------------------------------------------------\n");
     printf("%-20s %-20s %-7s %-6s %-20s\n", "Adress", "Previous", "Size", "Free", "Next");
     printf("------------------------------------------------------------------------\n");
-    printf("HEAD is %li\n", (long) HEAD);
+    printf("HEAD is %p\n", HEAD);
     if (!HEAD) {
         printf("List is empty.\n");
-        printf("TAIL is %li\n", (long) TAIL);
-        printf("------------------------------------------------------------------------\n\n");
-        return;
-    }
-    
+    } else {
     struct metadata* current = HEAD;
     while (current) {
-        printf("%-20li %-20li %-7i %-6i %-20li\n",
-               (long) current,
-               (long) current->prev,
+        printf("%-20p %-20p %-7i %-6i %-20p\n",
+               current,
+               current->prev,
                (int) current->size,
                current->free,
-               (long) current->next);
+               current->next);
         current = current->next;
+        }
     }
-    printf("TAIL is %li\n", (long) TAIL);
-
+    printf("TAIL is %p\n", TAIL);
     printf("------------------------------------------------------------------------\n\n");
 }
 
@@ -206,7 +206,6 @@ void myfree(void *ptr) {
   // If the block "to the right" exists and is free, we merge the two
   struct metadata* next_block = block->next;
   if (next_block && next_block->free) {
-      printf("Merging block with its right neighbour.\n");
       block->next = next_block->next;
       block->size = block->size + META_SIZE + next_block->size;
       
@@ -230,7 +229,6 @@ void myfree(void *ptr) {
   // Same for the block "to the left"
   struct metadata* prev_block = block->prev;
   if (prev_block && prev_block->free) {
-    printf("Merging block with its left neighbour.\n");
     prev_block->next = block->next;
     prev_block->size = prev_block->size + META_SIZE + block->size;
     
@@ -252,9 +250,7 @@ void myfree(void *ptr) {
 
 void* mycalloc(size_t nelem, size_t elsize) {
   // Check for overflow
-  printf("Trying to calloc %li elements a %li bytes.\n", nelem, elsize);
   if ( nelem > SIZE_MAX / elsize ) {
-      printf("Maximum size of size_t exceeded.\n");
       return NULL;}
   
   size_t size = nelem * elsize;
@@ -293,15 +289,19 @@ int main() {
     print_list();
     
     printf("Calloc-ing 10 ints, should cause a split.\n");
-    y = mycalloc(10, sizeof(int));   
+    x = mycalloc(10, sizeof(int));   
     print_list();
     
     printf("Calloc-ing 1000 ints.\n");
     y = mycalloc(1000, sizeof(int));   
     print_list();
-    
-    printf("Calloc-ing 1e19 ints, should return NULL and do nothing due to overflow.\n");
-    y = mycalloc(10000000000000000000, sizeof(int));   
+      
+    printf("Freeing first block.\n");
+    myfree(x);
+    print_list();
+
+    printf("Freeing other block.\n");
+    myfree(y);
     print_list();
     
     return 0;
