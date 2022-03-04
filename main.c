@@ -269,24 +269,18 @@ void* mycalloc(size_t nelem, size_t elsize) {
 
 void *myrealloc(void *ptr, size_t size) {
   // NULL ptr. realloc should act like malloc.
-  if (!ptr) {
-    return mymalloc(size);
-  }
+  if (!ptr) { return mymalloc(size); }
 
   // Get metadata associated with the block of memory ptr points to
   struct metadata* block_ptr = get_block_ptr(ptr);
   
   // If we already have enough space, we don't do anything
-  if (block_ptr->size >= size) {
-    // TODO: Split block?
-    return ptr;
-  }
+  // TODO: Split block?
+  if (block_ptr->size >= size) { return ptr; }
 
-  // Need to really realloc. Malloc new space first
-  void *new_ptr;
-  new_ptr = mymalloc(size);
-  
-  // Return NULL of malloc() failed
+  // Need to really realloc.
+  // Malloc new space first. Return NULL if failure
+  void *new_ptr = mymalloc(size);
   if (!new_ptr) { return NULL; }
 
   // Copy data to new memory
@@ -303,7 +297,6 @@ int main() {
     print_list();
     
     void* x;
-    void* y;
     
     printf("Allocate 100 bytes.\n");
     x = mymalloc(100);
