@@ -225,6 +225,13 @@ void myfree(void *ptr) {
 }
 
 
+void* calloc(size_t nelem, size_t elsize) {
+  size_t size = nelem * elsize; // TODO: check for overflow.
+  void *ptr = malloc(size);
+  memset(ptr, 0, size);
+  return ptr;
+}
+
 
 int main() {
     print_list();
