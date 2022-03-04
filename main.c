@@ -165,22 +165,22 @@ void print_list() {
     printf("------------------------------------------------------------------------\n");
     printf("%-20s %-20s %-7s %-6s %-20s\n", "Adress", "Previous", "Size", "Free", "Next");
     printf("------------------------------------------------------------------------\n");
-    printf("HEAD is %p\n", HEAD);
+    printf("HEAD is %li\n", (long int) HEAD);
     if (!HEAD) {
         printf("List is empty.\n");
     } else {
     struct metadata* current = HEAD;
     while (current) {
-        printf("%-20p %-20p %-7i %-6i %-20p\n",
-               current,
-               current->prev,
+        printf("%-20li %-20li %-7i %-6i %-20li\n",
+               (long int) current,
+               (long int) current->prev,
                (int) current->size,
                current->free,
-               current->next);
+               (long int) current->next);
         current = current->next;
         }
     }
-    printf("TAIL is %p\n", TAIL);
+    printf("TAIL is %li\n", (long int) TAIL);
     printf("------------------------------------------------------------------------\n\n");
 }
 
@@ -206,6 +206,8 @@ void myfree(void *ptr) {
   // If the block "to the right" exists and is free, we merge the two
   struct metadata* next_block = block->next;
   if (next_block && next_block->free) {
+      printf("Merge to right.\n");
+      
       block->next = next_block->next;
       block->size = block->size + META_SIZE + next_block->size;
       
@@ -223,14 +225,17 @@ void myfree(void *ptr) {
     }
       
   }
-  
-  
-  
-  // Same for the block "to the left"
+    
+  // Same for the block "to the left". If it exists and is free:
   struct metadata* prev_block = block->prev;
   if (prev_block && prev_block->free) {
+    // Successor of previous block is set to current block's successor
     prev_block->next = block->next;
+    
+    // Size of previous block is set to its size + size of one meta block
+    // + size of the current block
     prev_block->size = prev_block->size + META_SIZE + block->size;
+
     
     // If the block to left left has a predecessor, we set the predecessor's
     // *next ptr to the block we just merged together
@@ -251,57 +256,65 @@ void myfree(void *ptr) {
 void* mycalloc(size_t nelem, size_t elsize) {
   // Check for overflow
   if ( nelem > SIZE_MAX / elsize ) {
-      return NULL;}
+      return NULL;
+  }
   
+  // Allocate block, initialise with zeros and return.
   size_t size = nelem * elsize;
   void *ptr = mymalloc(size); 
   memset(ptr, 0, size);
-  
   return ptr;
 }
 
 
+void *myrealloc(void *ptr, size_t size) {
+  // NULL ptr. realloc should act like malloc.
+  if (!ptr) {
+    return mymalloc(size);
+  }
+
+  // Get metadata associated with the block of memory ptr points to
+  struct metadata* block_ptr = get_block_ptr(ptr);
+  
+  // If we already have enough space, we don't do anything
+  if (block_ptr->size >= size) {
+    // TODO: Split block?
+    return ptr;
+  }
+
+  // Need to really realloc. Malloc new space first
+  void *new_ptr;
+  new_ptr = mymalloc(size);
+  
+  // Return NULL of malloc() failed
+  if (!new_ptr) { return NULL; }
+
+  // Copy data to new memory
+  memcpy(new_ptr, ptr, block_ptr->size);
+  
+  // Free old block of memory
+  myfree(ptr);
+  
+  // Return new block
+  return new_ptr;
+}
+
 int main() {
     print_list();
     
-    printf("Allocating 500 bytes.\n");
-    void* x = mymalloc(500);
+    void* x;
+    void* y;
+    
+    printf("Allocate 100 bytes.\n");
+    x = mymalloc(100);
+    print_list();    
+    
+    printf("Realloc to 200 bytes.\n");
+    x = myrealloc(x, 200);
     print_list();
     
-    printf("Allocating another 500 bytes.\n");
-    void* y = mymalloc(500);
-    print_list();
-    
-    printf("Freeing the first block.\n");
+    printf("Free block\n");
     myfree(x);
-    print_list();
-    
-    printf("Allocating 10 bytes, should cause a split.\n");
-    x = mymalloc(10);
-    print_list();
-    
-    printf("Free the first block, should cause a merge with the block to the right.\n");
-    myfree(x);
-    print_list();
-    
-    printf("Free the second block, should cause a merge with the block to the left.\n");
-    myfree(y);
-    print_list();
-    
-    printf("Calloc-ing 10 ints, should cause a split.\n");
-    x = mycalloc(10, sizeof(int));   
-    print_list();
-    
-    printf("Calloc-ing 1000 ints.\n");
-    y = mycalloc(1000, sizeof(int));   
-    print_list();
-      
-    printf("Freeing first block.\n");
-    myfree(x);
-    print_list();
-
-    printf("Freeing other block.\n");
-    myfree(y);
     print_list();
     
     return 0;
