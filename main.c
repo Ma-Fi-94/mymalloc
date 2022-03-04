@@ -227,6 +227,8 @@ void myfree(void *ptr) {
 
 void* calloc(size_t nelem, size_t elsize) {
   size_t size = nelem * elsize; // TODO: check for overflow.
+  // https://codereview.stackexchange.com/questions/37177/simple-method-to-detect-int-overflow
+  
   void *ptr = malloc(size);
   memset(ptr, 0, size);
   return ptr;
