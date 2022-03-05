@@ -13,4 +13,5 @@ I've slightly refactored the code, annotated it extensively, and also improved i
   - Added a convenience function to print the current state of the global linked list of memory blocks.
   - Added block splitting when a free block is recycled which is too large (has been suggested as additional exercise in the tutorial).
   - Added block merging upon freeing of blocks (has been suggested as additional exercise in the tutorial).
+  - Added overflow check in calloc() (has been suggested as additional exercise in the tutorial).
 
