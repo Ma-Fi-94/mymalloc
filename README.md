@@ -1,9 +1,11 @@
 # mymalloc
-Very much WIP right now!
+The Ancient Rite of Passage: Writing your own memory manager in plain C ;).
 
-I'm following an online tutorial (https://danluu.com/malloc-tutorial/) for writing a simple memory manager in plain C. I'm slightly refactoring the code, annotating it extensively, and also slightly improve upon it (at least, I think I do...).
+I wrote this following this excellent online tutorial: https://danluu.com/malloc-tutorial/.
 
-## Changes to the original already implemented:
+I've slightly refactored the code, annotated it extensively, and also improved it a bit (at least, I think I did...).
+
+## Changes to the original:
   - Added a best-fit search as an alternative to the current first-fit search in find_free_block().
   - Introduced pointer TAIL to last element of the global linked list of memory blocks, so that we don't have to search for it anew every time. In my opinion, this makes the code slightly easier to understand, as we avoid the double pointer in the parameters of find_free_block() that gets changed during search.
   - Removed sbrk(0) before sbrk(META_SIZE + size) in request_space(), because as far as I can tell this is not required.
