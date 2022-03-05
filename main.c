@@ -22,6 +22,8 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#define ALLOC_BEST_FIT 1
+
 // For every allocated block, we store some metadata
 struct metadata {
   size_t size;
@@ -46,6 +48,7 @@ struct metadata* find_first_free_block(size_t size) {
     struct metadata* current = HEAD;
     
     // Iterate through list until suitable block is found
+    // If we don't find any, wel'll end up with NULL at the end
     while (current && !(current->free && current->size >= size)) {
         current = current->next;
     }
@@ -53,13 +56,28 @@ struct metadata* find_first_free_block(size_t size) {
     return current;
 }
 
-// TODO
 // Trying to find a free block of suitable size in the list.
 // Return the best-fitting block
-//struct metadata* find_best_free_block(size_t size) {
-    // TODO
-//    return NULL;
-//}
+struct metadata* find_best_free_block(size_t size) {
+    // Starting at the HEAD of the list
+    struct metadata* current = HEAD;
+
+    // Best block found so far is NULL
+    struct metadata* best = NULL;
+    size_t best_sizediff = SIZE_MAX;
+
+    // Iterate through the complete list
+    while (current) {
+        // Found a better suitable block?
+        if (current->free && current->size >= size && current->size - size < best_sizediff) {
+            best = current;
+            best_sizediff = current->size - size;
+        }
+        current = current->next;
+    }
+    
+    return best;
+}
 
 
 // Request a new block of memory from the OS
@@ -112,8 +130,13 @@ void *mymalloc(size_t size) {
     // Not the first call -- there are already blocks on the global list
     } else {
 
-        // Try to find a free block on the list
-        block = find_first_free_block(size);
+        if (!ALLOC_BEST_FIT) {        
+            // Try to find the first free block on the list
+            block = find_first_free_block(size);
+        } else {
+        // Alternatively, we may also try to find a best-fitting block:
+            block = find_best_free_block(size);
+        }
         
         // If we found a suitable free block on the list,
         // mark it as used now.
@@ -296,19 +319,30 @@ void *myrealloc(void *ptr, size_t size) {
 int main() {
     print_list();
     
-    void* x;
+    void *x, *y, *z;
     
-    printf("Allocate 100 bytes.\n");
-    x = mymalloc(100);
+    printf("Allocate 300 bytes.\n");
+    x = mymalloc(300);
     print_list();    
     
-    printf("Realloc to 200 bytes.\n");
-    x = myrealloc(x, 200);
+    printf("Allocate 200 bytes.\n");
+    y = mymalloc(200);   
     print_list();
-    
-    printf("Free block\n");
+
+    printf("Allocate 100 bytes.\n");
+    z = mymalloc(100);
+    print_list();
+
+    printf("Free first and third block (leave middle one alloc-ed to avoid merging).\n");
     myfree(x);
+    myfree(z);
     print_list();
-    
+
+    printf("Allocate 20 bytes.\nFirst-fit allocation will return slice of the first block.\nHowever, best-fit allocation will return third one.\n");
+    z = mymalloc(20);
+    print_list();
+
+
+
     return 0;
 }
