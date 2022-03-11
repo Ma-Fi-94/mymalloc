@@ -9,8 +9,8 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdint.h>
-
-#define ALLOC_BEST_FIT 1
+#include <time.h>
+#include <stdlib.h>
 
 // For every allocated block, we store some metadata
 struct metadata {
@@ -22,7 +22,7 @@ struct metadata {
 
 
 // The amount of bytes we need for one block's metadata
-#define META_SIZE sizeof(struct metadata)
+#define META_SIZE (size_t) sizeof(struct metadata)
 
 
 // Head and tail of our global linked list of metadata records
@@ -95,7 +95,7 @@ struct metadata* request_space(size_t size) {
 }
 
 
-void *mymalloc(size_t size) {
+void *mymalloc(size_t size, int allocate_first) {
     // Evidently nonsense
     if (size <= 0) { return NULL; }
 
@@ -118,7 +118,7 @@ void *mymalloc(size_t size) {
     // Not the first call -- there are already blocks on the global list
     } else {
 
-        if (!ALLOC_BEST_FIT) {        
+        if (allocate_first) {        
             // Try to find the first free block on the list
             block = find_first_free_block(size);
         } else {
@@ -133,9 +133,10 @@ void *mymalloc(size_t size) {
             
             // If the block is sufficiently large, split it
             if (block->size > size + 2*META_SIZE) {
+                printf(">>> Split too large free block.\n");
                 
                 // The new block that contains the surplus memory
-                struct metadata* surplus = (void*) block + META_SIZE + size;
+                struct metadata* surplus = (unsigned long int) block + META_SIZE + size;
                 
                 // If the current block was TAIL, the surplus block
                 // becomes the new TAIL
@@ -148,10 +149,17 @@ void *mymalloc(size_t size) {
                 surplus->next = block->next;
                 surplus->prev = block;
                 surplus->free = 1;
+
+                // If the successor of the surplus block is not NULL,
+                // we set its *prev to surplus
+                if (surplus->next) {
+                    (surplus->next)->prev = surplus;
+                }
                 
                 // Write metadata for the allocated block
                 block->size = size;
                 block->next = surplus;
+
             }
        
         // If we didn't find a suitable free block, request memory from the OS
@@ -202,6 +210,9 @@ struct metadata *get_block_ptr(void *ptr) {
 
 
 void myfree(void *ptr) {
+  struct metadata* prev_block;
+  struct metadata* next_block;
+
   // Calling free(NULL) is supported
   if (!ptr) { return; }
  
@@ -214,49 +225,55 @@ void myfree(void *ptr) {
   // Free it
   block->free = 1;
   
-  // If the block "to the right" exists and is free, we merge the two
-  struct metadata* next_block = block->next;
+  // If the block "to the right" exists and is free, we merge them
+  prev_block = block->prev;
+  next_block = block->next;
   if (next_block && next_block->free) {
-      printf("Merge to right.\n");
-      
-      block->next = next_block->next;
+      printf(">>> Merge to the right.\n");
+      // Increase size of current block
       block->size = block->size + META_SIZE + next_block->size;
-      
-      // If the block to the right has a successor, we set the successor's
-      // *prev pointer to the block we just merged together
+
+      // Sucessor of current block is set to the successor of the successor   
+      // (which might very well be NULL)
       struct metadata* next_next_block = next_block->next;
+      block->next = next_next_block;
+
+      // If the next_next_block is not NULL, we set its *prev
+      // to the block we currently handle
       if (next_next_block) {
         next_next_block->prev = block;
       }
-      
-    // If the block to the right was the TAIL, then
-    // the merged block becomes the new TAIL.
-    if (TAIL == next_block) {
-        TAIL = block;
-    }
-      
+
+      // If the block to the right was the TAIL, then
+      // the current merged block becomes the new TAIL.
+      if (TAIL == next_block) {
+          TAIL = block;
+      } 
   }
     
-  // Same for the block "to the left". If it exists and is free:
-  struct metadata* prev_block = block->prev;
+  // Same for the block "to the left" if it exists and is free
+  prev_block = block->prev;
+  next_block = block->next;
   if (prev_block && prev_block->free) {
-    // Successor of previous block is set to current block's successor
-    prev_block->next = block->next;
-    
+    printf(">>> Merge to the left.\n");
+
     // Size of previous block is set to its size + size of one meta block
     // + size of the current block
     prev_block->size = prev_block->size + META_SIZE + block->size;
 
-    
-    // If the block to left left has a predecessor, we set the predecessor's
-    // *next ptr to the block we just merged together
-    struct metadata* prev_prev_block = prev_block->prev;
-    if (prev_prev_block) {
-        prev_prev_block->next = block;
+    // Successor of previous block is set to current block's successor
+    // (which might very well be NULL)
+    prev_block->next = next_block;
+
+    // If the next block is not NULL,
+    // its predecessor is set to the
+    // predecessor of the current block
+    if (next_block) {
+        next_block->prev = block->prev;
     }
-    
+       
     // If the current block was the TAIL,
-    // the newly merged block becomes the new TAIL
+    // the newly merged block (the predecessor) becomes the new TAIL
     if (TAIL == block) {
         TAIL = prev_block;
     }
@@ -264,7 +281,72 @@ void myfree(void *ptr) {
 }
 
 int main() {
+    // Whether we use first-fit allocator (or best-fit)
+    int allocate_first = 1;
 
-  
-  return 0;
+    // Setup -- need some temporary vars for simulation.
+    srand(5);
+    size_t blocksize;
+    int block_number;
+    int i, j, nb_alloced=0, ctr;
+    struct metadata *ptr;
+
+    for (i = 0; i < 10000; i++) {
+        printf("\n\n***** STEP %i ***** \n", i);
+        print_list();
+
+        // count by hand how many alloced blocks we have in the list
+        ptr = HEAD;
+        ctr = 0;
+        while(ptr) {
+            if (!(ptr->free)) {ctr++;}
+            ptr = ptr->next;
+        }
+        // if they differ, we have a problem.
+        if (nb_alloced != ctr) {
+            printf(" ############ ERROR ############ \n");
+            printf(" ############ ERROR ############ \n");
+            printf(" ############ ERROR ############ \n");
+            printf("nb_alloced contains: %i\n", nb_alloced);
+            printf("Actual nb. alloced blocks: %i\n", ctr);
+            printf("\n\n");
+        }
+
+        if (rand() > RAND_MAX/2) {
+            // Allocate a new block of random size
+            // between 10 and 1000 bytes
+            blocksize = 10 + rand() % 990;
+            printf("Allocing %i bytes.\n", blocksize);
+            mymalloc(blocksize, allocate_first);
+            nb_alloced++;
+ 
+       } else if (nb_alloced) {
+            // Free a random occupied block
+            block_number = rand() % nb_alloced;
+            printf("Freeing occupied block with index %i.\n", block_number);
+
+            // Travel to the block to be freed
+            j = 0;
+            ptr = HEAD;
+            while (1) {
+                // Free blocks are just skipped
+                if (ptr->free) {
+                    ptr = ptr->next;
+                } else {
+                    // Found the block
+                    if (block_number == j) {break;}
+                    // Else, go on
+                    j++;
+                    ptr = ptr->next;
+                }
+            }
+
+            // and free it
+            myfree((void*) (META_SIZE + (unsigned long int) ptr));
+            nb_alloced--;
+
+        } else {
+        }
+    } 
+    return 0;
 }

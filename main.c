@@ -160,6 +160,13 @@ void *mymalloc(size_t size) {
                 surplus->next = block->next;
                 surplus->prev = block;
                 surplus->free = 1;
+
+                // If the successor of the surplus block is not NULL,
+                // we set its *prev to surplus
+                if (surplus->next) {
+                    (surplus->next)->prev = surplus;
+                }
+
                 
                 // Write metadata for the allocated block
                 block->size = size;
@@ -226,49 +233,52 @@ void myfree(void *ptr) {
   // Free it
   block->free = 1;
   
-  // If the block "to the right" exists and is free, we merge the two
-  struct metadata* next_block = block->next;
+  // If the block "to the right" exists and is free, we merge them
+  prev_block = block->prev;
+  next_block = block->next;
   if (next_block && next_block->free) {
-      printf("Merge to right.\n");
-      
-      block->next = next_block->next;
+      // Increase size of current block
       block->size = block->size + META_SIZE + next_block->size;
-      
-      // If the block to the right has a successor, we set the successor's
-      // *prev pointer to the block we just merged together
+
+      // Sucessor of current block is set to the successor of the successor   
+      // (which might very well be NULL)
       struct metadata* next_next_block = next_block->next;
+      block->next = next_next_block;
+
+      // If the next_next_block is not NULL, we set its *prev
+      // to the block we currently handle
       if (next_next_block) {
         next_next_block->prev = block;
       }
-      
-    // If the block to the right was the TAIL, then
-    // the merged block becomes the new TAIL.
-    if (TAIL == next_block) {
-        TAIL = block;
-    }
-      
+
+      // If the block to the right was the TAIL, then
+      // the current merged block becomes the new TAIL.
+      if (TAIL == next_block) {
+          TAIL = block;
+      } 
   }
     
-  // Same for the block "to the left". If it exists and is free:
-  struct metadata* prev_block = block->prev;
+  // Same for the block "to the left" if it exists and is free
+  prev_block = block->prev;
+  next_block = block->next;
   if (prev_block && prev_block->free) {
-    // Successor of previous block is set to current block's successor
-    prev_block->next = block->next;
-    
     // Size of previous block is set to its size + size of one meta block
     // + size of the current block
     prev_block->size = prev_block->size + META_SIZE + block->size;
 
-    
-    // If the block to left left has a predecessor, we set the predecessor's
-    // *next ptr to the block we just merged together
-    struct metadata* prev_prev_block = prev_block->prev;
-    if (prev_prev_block) {
-        prev_prev_block->next = block;
+    // Successor of previous block is set to current block's successor
+    // (which might very well be NULL)
+    prev_block->next = next_block;
+
+    // If the next block is not NULL,
+    // its predecessor is set to the
+    // predecessor of the current block
+    if (next_block) {
+        next_block->prev = block->prev;
     }
-    
+       
     // If the current block was the TAIL,
-    // the newly merged block becomes the new TAIL
+    // the newly merged block (the predecessor) becomes the new TAIL
     if (TAIL == block) {
         TAIL = prev_block;
     }

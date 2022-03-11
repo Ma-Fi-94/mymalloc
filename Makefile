@@ -1,7 +1,7 @@
-SRC = main.c
-DEST = main.elf
-CC_FLAGS = -Wall -Wextra
-CC = gcc
+SRC = performance_comparison.c
+DEST = performance_comparison.elf
+CC_FLAGS = -Weverything -Wall -Wextra
+CC = clang
 
 go: clean all run
 
@@ -12,6 +12,6 @@ all:
 	${CC} ${SRC} ${CC_FLAGS} -o ${DEST}
 
 run:
-	./main.elf
+	./performance_comparison.elf
 
 
