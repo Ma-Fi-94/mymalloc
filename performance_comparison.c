@@ -19,7 +19,7 @@ struct metadata* request_space(size_t size);
 struct metadata *get_block_ptr(void *ptr);
 void print_list(void);
 void *mymalloc(size_t size, int allocate_first);
-void myfree(void *ptr);
+void myfree(void *ptr, int merge);
 
 
 // For every allocated block, we store some metadata
@@ -218,7 +218,7 @@ struct metadata *get_block_ptr(void *ptr) {
 }
 
 
-void myfree(void *ptr) {
+void myfree(void *ptr, int merge) {
   struct metadata* prev_block;
   struct metadata* next_block;
 
@@ -234,6 +234,9 @@ void myfree(void *ptr) {
   // Free it
   block->free = 1;
   
+  // if no merging, we return
+  if (!merge) {return;}
+
   // If the block "to the right" exists and is free, we merge them
   prev_block = block->prev;
   next_block = block->next;
@@ -287,12 +290,23 @@ void myfree(void *ptr) {
   } 
 }
 
-int main() {
+int main(int argc, char *argv[]) {
+    if (argc != 4) {
+        printf("Please provide exactly three params: int merge, int allocate_first, int seed. Aborting.\n");
+        return -1;
+    }
+
+    // Whether we merge blocks upon freeing
+    int merge = atoi(argv[1]);
+
     // Whether we use first-fit allocator (or best-fit)
-    int allocate_first = 1;
+    int allocate_first = atoi(argv[2]);
+
+    // random seed
+    int seed = atoi(argv[3]);
 
     // Setup -- need some temporary vars for simulation.
-    srand(1);
+    srand(seed);
     size_t blocksize;
     int block_number;
     int i, j, nb_alloced=0;
@@ -301,7 +315,7 @@ int main() {
     // Time 1e+6 random operations
     clock_t begin = clock();
 
-    for (i = 0; i < 1000000; i++) {
+    for (i = 0; i < 100000; i++) {
         if (rand() > RAND_MAX/2) {
             // Allocate a new block of random size
             // between 10 and 10'000 bytes
@@ -330,7 +344,7 @@ int main() {
             }
 
             // and free it
-            myfree((void*) (META_SIZE + (unsigned long int) ptr));
+            myfree((void*) (META_SIZE + (unsigned long int) ptr), merge);
             nb_alloced--;
 
         }
@@ -338,8 +352,34 @@ int main() {
 
     clock_t end = clock();
 
-    print_list();
-    printf("%li ticks.\n", end-begin);
+    //printf("%li ticks.\n", end-begin);
+
+    // Metrics to assess structure of the memory block list
+    int nb_free_blocks = 0, nb_all_blocks = 0;
+    size_t sum_free_memory = 0;
+    size_t sum_all_memory = 0;
+    double avg_free_size, fraction_free_blocks, occupation;
+    ptr = HEAD;
+    while(ptr) {
+        sum_all_memory += ptr->size;
+        nb_all_blocks += 1;
+        if (ptr->free) {
+            nb_free_blocks++;
+            sum_free_memory += ptr->size;
+        }
+        ptr = ptr->next;
+    }
+    avg_free_size = ((double) sum_free_memory) / nb_free_blocks;
+    occupation = ((double) sum_free_memory) / sum_all_memory;
+    fraction_free_blocks = ((double) nb_free_blocks) / nb_all_blocks;
+
+    //printf("merge, allocate_first, seed, nb_free_blocks, nb_all_blocks, fraction_free_blocks, sum_free_memory, sum_all_memory, occupation, avg_free_size\n");
+    printf("%i,%i,%i,%i,%i,%f,%li,%li,%f,%f\n", merge, allocate_first, seed, nb_free_blocks, nb_all_blocks, fraction_free_blocks, sum_free_memory, sum_all_memory, occupation, avg_free_size);
+
+
+
+
+
 
     return 0;
 }
